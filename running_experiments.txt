@@ -1,0 +1,12 @@
+./evaluation/benchmarks/swe_bench/scripts/run_infer.sh [model_config] [git-version] [agent] [eval_limit] [max_iter] [num_workers] [dataset] [dataset_split] [n_runs] [mode]
+
+# SWT Bench - running one example on SWT Bench
+./evaluation/benchmarks/swe_bench/scripts/run_infer.sh llm.sonnet35v2 HEAD CodeActAgent 5 10 5 princeton-nlp/SWE-bench_Lite test 1 swt "/Users/amathai/Desktop/amazon_internship/OpenHands-Alex/evaluation/benchmarks/swe_bench/scripts/run_subset/subset_ids_complete.json"
+
+
+# Converting to the jsonl file
+export PYTHONPATH="/Users/amathai/Desktop/amazon_internship/OpenHands-Alex"
+python3 evaluation/benchmarks/swe_bench/scripts/swtbench/convert.py --prediction_file /Users/amathai/Desktop/amazon_internship/OpenHands-Alex/evaluation/evaluation_outputs/outputs/princeton-nlp__SWE-bench_Verified-test/CodeActAgent/us.anthropic.claude-3-5-sonnet-20241022-v2_0_maxiter_10_N_v0.41.0-no-hint-swt-run_1/output.jsonl > /Users/amathai/Desktop/amazon_internship/OpenHands-Alex/evaluation/evaluation_outputs/outputs/princeton-nlp__SWE-bench_Verified-test/CodeActAgent/us.anthropic.claude-3-5-sonnet-20241022-v2_0_maxiter_10_N_v0.41.0-no-hint-swt-run_1/output_swt.jsonl
+
+
+
