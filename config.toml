@@ -1,0 +1,45 @@
+[llm]
+
+[llm.hostedvllm]
+model = "hosted_vllm/Qwen/Qwen2.5-Coder-32B-Instruct"
+base_url = "http://localhost:8000/v1"
+
+[llm.sonnet35v2]
+model = "bedrock/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+aws_region_name = "us-west-2"
+num_retries = 100
+retry_min_wait = 2
+retry_max_wait = 20
+
+[llm.sonnet37_thinking]
+model = "bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+aws_region_name = "us-west-2"
+temperature = 1
+thinking = true
+thinking_budget_tokens = 4000
+max_output_tokens = 8000
+num_retries = 100
+retry_min_wait = 2
+retry_max_wait = 2
+[llm.sonnet37_no_thinking]
+model = "bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+aws_region_name = "us-west-2"
+num_retries = 100
+retry_min_wait = 2
+retry_max_wait = 2
+
+[llm.sonnet4]
+model = "bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0"
+aws_region_name = "us-west-2"
+max_output_tokens = 4096
+num_retries = 100
+retry_min_wait = 2
+retry_max_wait = 2
+
+[llm.opus4]
+model = "bedrock/us.anthropic.claude-opus-4-20250514-v1:0"
+aws_region_name = "us-west-2"
+max_output_tokens = 4096
+num_retries = 100
+retry_min_wait = 2
+retry_max_wait = 2
