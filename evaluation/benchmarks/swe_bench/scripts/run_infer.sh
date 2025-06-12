@@ -13,7 +13,11 @@ DATASET=$7
 SPLIT=$8
 N_RUNS=$9
 MODE=${10}
+DATA_ID_PATH=${11}
 
+echo "======"
+echo $DATA_ID_PATH
+echo "======"
 
 if [ -z "$NUM_WORKERS" ]; then
   NUM_WORKERS=1
@@ -111,9 +115,8 @@ function run_eval() {
     --eval-note $eval_note \
     --dataset $DATASET \
     --split $SPLIT \
-    --mode $MODE"
-
-
+    --mode $MODE \
+    --specific_dataids $DATA_ID_PATH"
 
   if [ -n "$EVAL_LIMIT" ]; then
     echo "EVAL_LIMIT: $EVAL_LIMIT"

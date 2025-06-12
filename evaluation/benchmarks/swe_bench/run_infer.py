@@ -60,6 +60,10 @@ from openhands.runtime.base import Runtime
 from openhands.utils.async_utils import call_async_from_sync
 from openhands.utils.shutdown_listener import sleep_if_should_continue
 
+from datasets import load_dataset
+from unidiff import PatchSet
+import json
+
 USE_HINT_TEXT = os.environ.get('USE_HINT_TEXT', 'false').lower() == 'true'
 RUN_WITH_BROWSING = os.environ.get('RUN_WITH_BROWSING', 'false').lower() == 'true'
 BenchMode = Literal['swe', 'swt', 'swt-ci']
@@ -74,15 +78,29 @@ def _get_swebench_workspace_dir_name(instance: pd.Series) -> str:
     return f'{instance.repo}__{instance.version}'.replace('/', '__')
 
 
+def extract_patch_file_paths(patch_str) :
+    """ Extract patch from a normal diff file. """
+    patch_set = PatchSet(patch_str)
+    ans = []
+    for patched_file in patch_set:
+        ans.append(
+            patched_file.path
+        )
+    return ans
+
 def get_instruction(instance: pd.Series, metadata: EvalMetadata) -> MessageAction:
     workspace_dir_name = _get_swebench_workspace_dir_name(instance)
     mode = metadata.details['mode']
+
     if mode.startswith('swt'):
         test_instructions = (
             f'The following command can be used to run the tests: `{list(MAP_REPO_TO_TEST_FRAMEWORK_VERBOSE[instance.repo].values())[0]}`. Make sure they fail in the expected way.\n'
             if mode.endswith('ci')
             else ''
         )
+
+        ground_truth_test_file = extract_patch_file_paths(instance.test_patch)
+
         instruction = f"""\
 <uploaded_files>
 /workspace/{workspace_dir_name}
@@ -93,17 +111,46 @@ I've uploaded a python code repository in the directory {workspace_dir_name}. Co
 {instance.problem_statement}
 </issue_description>
 
+<test_file_path>
+{ground_truth_test_file}
+</test_file_path>
 
 Can you help me implement the necessary changes to the repository to test whether the issue in <issue_description> was resolved?
 I will take care of all changes to any of the non-test files. This means you DON'T have to modify the actual logic and ONLY have to update test logic and tests!
 Your task is to make the minimal changes to tests files in the /workspace directory to reproduce the issue in the <issue_description>, i.e., such that the generated tests fail in the current state (where the issue is unresolved) and pass when the issue will be resolved.
 Follow these steps to reproduce the issue:
 1. As a first step, it might be a good idea to explore the repo to familiarize yourself with its structure.
-2. Create a script `reproduction.py` to reproduce the error and execute it with `python reproduction.py` using the BashTool, to confirm the error
-3. Edit the sourcecode of the repo to integrate your reproduction script into the test framework
+2. Navigate to the test file path mentioned in <test_file_path> ... </test_file_path>
+3. Edit the sourcecode of that file to integrate your reproduction script into the test framework
 4. Run the test framework and make sure your tests fail! Only submit FAILING tests! Never submit passing tests.
-{test_instructions}Your thinking should be thorough and so it's fine if it's very long.
+{test_instructions} Your thinking should be thorough and so it's fine if it's very long.
+5. If your edits to the existing test file have import issues or other problems, feel free to run the test framework mutliple times to resolve these errors.
 """
+
+        # from IPython import embed
+        # embed()
+
+#         instruction = f"""\
+# <uploaded_files>
+# /workspace/{workspace_dir_name}
+# </uploaded_files>
+# I've uploaded a python code repository in the directory {workspace_dir_name}. Consider the following issue description:
+
+# <issue_description>
+# {instance.problem_statement}
+# </issue_description>
+
+# Can you help me implement the necessary changes to the repository to test whether the issue in <issue_description> was resolved?
+# I will take care of all changes to any of the non-test files. This means you DON'T have to modify the actual logic and ONLY have to update test logic and tests!
+# Your task is to make the minimal changes to tests files in the /workspace directory to reproduce the issue in the <issue_description>, i.e., such that the generated tests fail in the current state (where the issue is unresolved) and pass when the issue will be resolved.
+# Follow these steps to reproduce the issue:
+# 1. As a first step, it might be a good idea to explore the repo to familiarize yourself with its structure.
+# 2. Create a script `reproduction.py` to reproduce the error and execute it with `python reproduction.py` using the BashTool, to confirm the error
+# 3. Edit the sourcecode of the repo to integrate your reproduction script into the test framework
+# 4. Run the test framework and make sure your tests fail! Only submit FAILING tests! Never submit passing tests.
+# {test_instructions}Your thinking should be thorough and so it's fine if it's very long.
+# """
+
     else:
         instruction = f"""
 <uploaded_files>
@@ -637,11 +684,12 @@ def process_instance(
     runtime = create_runtime(config)
     call_async_from_sync(runtime.connect)
 
+    logger.warning("message from Alex")
     try:
         initialize_runtime(runtime, instance, metadata)
 
         message_action = get_instruction(instance, metadata)
-
+        logger.warning("After instruction !!")
         # Here's how you can run the agent (similar to the `main` function) and get the final task state
         state: State | None = asyncio.run(
             run_controller(
@@ -739,6 +787,8 @@ def filter_dataset(dataset: pd.DataFrame, filter_column: str) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
+    from typing import List
+
     parser = get_parser()
     parser.add_argument(
         '--dataset',
@@ -759,8 +809,24 @@ if __name__ == '__main__':
         choices=['swe', 'swt', 'swt-ci'],
         help="mode to run the evaluation, either 'swe', 'swt', or 'swt-ci'",
     )
+    parser.add_argument(
+        "--specific_dataids",
+        type=str,
+        default=None,
+        help="specific data ids to run"
+    )
 
     args, _ = parser.parse_known_args()
+
+    logger.info(f"Specific Data IDs {args.specific_dataids}")
+    data_id_list = []
+    if args.specific_dataids :
+        with open(args.specific_dataids, "r") as f :
+            json_data = json.load(f)
+            data_id_list = list(json_data.keys())
+    logger.info(data_id_list)
+
+    # assert(False)
 
     # NOTE: It is preferable to load datasets from huggingface datasets and perform post-processing
     # so we don't need to manage file uploading to OpenHands's repo
@@ -842,7 +908,11 @@ if __name__ == '__main__':
 
     if not ITERATIVE_EVAL_MODE:
         # load the dataset
-        instances = prepare_dataset(swe_bench_tests, output_file, args.eval_n_limit)
+        instances = prepare_dataset(swe_bench_tests, output_file, args.eval_n_limit, reduced_set=data_id_list)
+
+        # from IPython import embed
+        # embed()
+
         if len(instances) > 0 and not isinstance(
             instances['PASS_TO_PASS'][instances['PASS_TO_PASS'].index[0]], str
         ):

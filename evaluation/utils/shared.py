@@ -220,6 +220,7 @@ def prepare_dataset(
     eval_n_limit: int,
     eval_ids: list[str] | None = None,
     skip_num: int | None = None,
+    reduced_set:list[str] | None = None
 ):
     assert 'instance_id' in dataset.columns, (
         "Expected 'instance_id' column in the dataset. You should define your own unique identifier for each instance and use it as the 'instance_id' column."
@@ -236,10 +237,21 @@ def prepare_dataset(
             f'\nOutput file {output_file} already exists. Loaded {len(finished_ids)} finished instances.'
         )
 
+    # from IPython import embed
+    # embed()
+    if reduced_set :
+        dataset = [
+            instance
+            for _, instance in dataset.iterrows()
+            if str(instance[id_column]) in reduced_set
+        ]
+        dataset = pd.DataFrame(dataset)
+
     if eval_ids:
         eval_ids_converted = [dataset[id_column].dtype.type(id) for id in eval_ids]
         dataset = dataset[dataset[id_column].isin(eval_ids_converted)]
         logger.info(f'Limiting evaluation to {len(eval_ids)} specific instances.')
+
     elif skip_num and skip_num >= 0:
         skip_num = min(skip_num, len(dataset))
         dataset = dataset.iloc[skip_num:]
@@ -254,6 +266,7 @@ def prepare_dataset(
             logger.info(
                 f'Randomly sampling {eval_n_limit} unique instances with random seed 42.'
             )
+
     elif eval_n_limit and eval_n_limit > 0:
         # Use fixed random seed 42 for sampling without replacement
         dataset = dataset.sample(
@@ -263,6 +276,8 @@ def prepare_dataset(
             f'Randomly sampling {eval_n_limit} unique instances with random seed 42.'
         )
 
+    # from IPython import embed
+    # embed()
     new_dataset = [
         instance
         for _, instance in dataset.iterrows()
